@@ -23,7 +23,8 @@ import {
     Rows,
     AlignJustify,
     StretchHorizontal,
-    Maximize2
+    Maximize2,
+    LogOut
 } from 'lucide-react';
 import { INITIAL_ORDERS } from './constants';
 import { ServiceOrder, calculateProfit, formatCurrency, calculateCosts, calculateReceivedAmount, ProgressStage, Transaction, ViewMode } from './types';
@@ -32,8 +33,24 @@ import { OrderForm } from './components/OrderForm';
 import { MonthlyGoalWidget } from './components/MonthlyGoalWidget';
 import { TransactionModal } from './components/TransactionModal';
 import { AnimatedCounter, MoneyRain } from './components/ui/Effects';
+import { useAuth } from './contexts/AuthContext';
+import { Login } from './components/Login';
 
 function App() {
+    const { session, loading, signOut } = useAuth();
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+            </div>
+        );
+    }
+
+    if (!session) {
+        return <Login />;
+    }
+
     const [orders, setOrders] = useState<ServiceOrder[]>(INITIAL_ORDERS);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
@@ -372,7 +389,16 @@ function App() {
                             </div>
                         </div>
 
+
+
                         <div className="flex items-center gap-4">
+                            <button
+                                onClick={signOut}
+                                className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                title="Sair do Sistema"
+                            >
+                                <LogOut size={20} />
+                            </button>
                             <div className="hidden lg:flex items-center gap-3 px-4 py-2 bg-slate-900/50 border border-white/5 rounded-full text-sm text-slate-400 focus-within:border-emerald-500/50 focus-within:ring-1 focus-within:ring-emerald-500/20 transition-all mr-2">
                                 <Search size={16} />
                                 <input className="bg-transparent border-none focus:outline-none placeholder-slate-600 w-48 xl:w-64" placeholder="Buscar por cliente, ID..." />
@@ -402,6 +428,7 @@ function App() {
                             </button>
                         </div>
                     </div>
+
                 </div>
             </nav>
 
@@ -548,8 +575,8 @@ function App() {
                                             {isCritical && <AlertTriangle size={12} className={isActive ? 'animate-pulse' : ''} />}
                                             {f.label}
                                             <span className={`px-1.5 py-0.5 rounded text-[9px] ${isActive
-                                                    ? (isCritical ? 'bg-rose-500 text-white' : 'bg-slate-700 text-white')
-                                                    : (isCritical ? 'bg-rose-500/10 text-rose-500' : 'bg-slate-800 text-slate-500')
+                                                ? (isCritical ? 'bg-rose-500 text-white' : 'bg-slate-700 text-white')
+                                                : (isCritical ? 'bg-rose-500/10 text-rose-500' : 'bg-slate-800 text-slate-500')
                                                 }`}>
                                                 {f.count}
                                             </span>
@@ -745,7 +772,7 @@ function App() {
                 )}
             </AnimatePresence>
 
-        </div>
+        </div >
     );
 }
 
