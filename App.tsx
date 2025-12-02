@@ -27,11 +27,11 @@ import {
 } from 'lucide-react';
 import { INITIAL_ORDERS } from './constants';
 import { ServiceOrder, calculateProfit, formatCurrency, calculateCosts, calculateReceivedAmount, ProgressStage, Transaction, ViewMode } from './types';
-import { ServiceOrderCard } from '../components/ServiceOrderCard';
-import { OrderForm } from '../components/OrderForm';
-import { MonthlyGoalWidget } from '../components/MonthlyGoalWidget';
-import { TransactionModal } from '../components/TransactionModal';
-import { AnimatedCounter, MoneyRain } from '../components/ui/Effects';
+import { ServiceOrderCard } from './components/ServiceOrderCard';
+import { OrderForm } from './components/OrderForm';
+import { MonthlyGoalWidget } from './components/MonthlyGoalWidget';
+import { TransactionModal } from './components/TransactionModal';
+import { AnimatedCounter, MoneyRain } from './components/ui/Effects';
 
 function App() {
     const [orders, setOrders] = useState<ServiceOrder[]>(INITIAL_ORDERS);
