@@ -35,6 +35,16 @@ import { TransactionModal } from './components/TransactionModal';
 import { AnimatedCounter, MoneyRain } from './components/ui/Effects';
 import { useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
+import {
+    fetchServiceOrders,
+    createServiceOrder,
+    updateServiceOrder,
+    deleteServiceOrder,
+    fetchTransactions,
+    createTransaction,
+    fetchMonthlyGoals,
+    setMonthlyGoal
+} from './utils/supabaseService';
 
 function App() {
     const { session, loading, signOut } = useAuth();
@@ -51,50 +61,73 @@ function App() {
         return <Login />;
     }
 
-    const [orders, setOrders] = useState<ServiceOrder[]>(INITIAL_ORDERS);
-    const [isFormOpen, setIsFormOpen] = useState(false);
-    const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
-
-    const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
-    // Added 'critical' to filter type
-    const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'critical'>('active');
-    const [viewMode, setViewMode] = useState<ViewMode>('default');
+    // --- DATA FETCHING & STATE ---
+    const [orders, setOrders] = useState<ServiceOrder[]>([]);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [monthlyGoals, setMonthlyGoals] = useState<Record<string, number>>({});
+    const [isLoadingData, setIsLoadingData] = useState(true);
 
     // UI States
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+    const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
+    const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'critical'>('active');
+    const [viewMode, setViewMode] = useState<ViewMode>('default');
     const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
-    const [deleteId, setDeleteId] = useState<string | null>(null); // For delete modal
-    const [showSuccessToast, setShowSuccessToast] = useState(false); // For save feedback
-
-    // --- URGENT ALERT LOGIC ---
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [showSuccessToast, setShowSuccessToast] = useState(false);
     const [urgentAlert, setUrgentAlert] = useState<{ count: number, names: string[], show: boolean }>({ count: 0, names: [], show: false });
 
-    // Helper to identify critical orders (Used in Alert and Filter)
-    const isOrderCritical = (order: ServiceOrder): boolean => {
-        if (order.progress === 100) return false; // Ignore completed
+    // Revenue Card UI
+    const [showMoneyRain, setShowMoneyRain] = useState(false);
+    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [revenueViewDate, setRevenueViewDate] = useState(new Date());
+    const [viewDate, setViewDate] = useState(new Date());
 
+    const fetchData = async () => {
+        try {
+            setIsLoadingData(true);
+            const [fetchedOrders, fetchedTransactions, fetchedGoals] = await Promise.all([
+                fetchServiceOrders(),
+                fetchTransactions(),
+                fetchMonthlyGoals()
+            ]);
+            setOrders(fetchedOrders);
+            setTransactions(fetchedTransactions);
+            setMonthlyGoals(fetchedGoals);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            alert('Erro ao carregar dados. Verifique sua conexão.');
+        } finally {
+            setIsLoadingData(false);
+        }
+    };
+
+    useEffect(() => {
+        if (session) {
+            fetchData();
+        }
+    }, [session]);
+
+    // --- URGENT ALERT LOGIC ---
+    const isOrderCritical = (order: ServiceOrder): boolean => {
+        if (order.progress === 100) return false;
         const now = new Date();
         const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
         const [year, month, day] = order.pickupDate.split('-').map(Number);
         const targetDate = new Date(year, month - 1, day).getTime();
-
         const diffDays = Math.ceil((targetDate - nowMidnight) / (1000 * 60 * 60 * 24));
-        // Criteria: 5 days or less until pickup
         return diffDays <= 5;
     };
 
     useEffect(() => {
         const checkCriticalOrders = () => {
             const criticalOrders = orders.filter(isOrderCritical);
-
             if (criticalOrders.length > 0) {
                 const FIVE_HOURS = 5 * 60 * 60 * 1000;
                 const lastAlertTime = localStorage.getItem('lastExpirationAlertTime');
                 const now = Date.now();
-
-                // Check if alert should show (First time OR > 5 hours passed)
                 const shouldShow = !lastAlertTime || (now - parseInt(lastAlertTime)) > FIVE_HOURS;
-
                 if (shouldShow) {
                     const clientNames = criticalOrders.map(o => o.clientName);
                     setUrgentAlert({ count: criticalOrders.length, names: clientNames, show: true });
@@ -102,130 +135,33 @@ function App() {
                 }
             }
         };
-
-        // Run immediately on mount
-        checkCriticalOrders();
-
-        // Run every minute (to catch the window while app is open)
+        if (orders.length > 0) checkCriticalOrders();
         const interval = setInterval(checkCriticalOrders, 60000);
-
         return () => clearInterval(interval);
     }, [orders]);
 
     const handleUrgentAlertClick = () => {
-        // 1. Filter to show critical items
         setFilter('critical');
-        // 2. Dismiss popup
         setUrgentAlert(prev => ({ ...prev, show: false }));
-        // 3. Scroll to list
         const listElement = document.getElementById('orders-list-anchor');
-        if (listElement) {
-            listElement.scrollIntoView({ behavior: 'smooth' });
-        } else {
-            window.scrollTo({ top: 400, behavior: 'smooth' });
-        }
+        if (listElement) listElement.scrollIntoView({ behavior: 'smooth' });
+        else window.scrollTo({ top: 400, behavior: 'smooth' });
     };
 
     const dismissUrgentAlert = (e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent triggering the filter click
+        e.stopPropagation();
         setUrgentAlert(prev => ({ ...prev, show: false }));
     };
 
-
-    // --- PREMIUM HOVER EFFECT LOGIC (REVENUE CARD) ---
-    const [showMoneyRain, setShowMoneyRain] = useState(false);
-    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+    // --- REVENUE CARD LOGIC ---
     const handleRevenueMouseEnter = () => {
-        hoverTimerRef.current = setTimeout(() => {
-            setShowMoneyRain(true);
-        }, 2000);
+        hoverTimerRef.current = setTimeout(() => { setShowMoneyRain(true); }, 2000);
     };
 
     const handleRevenueMouseLeave = () => {
-        if (hoverTimerRef.current) {
-            clearTimeout(hoverTimerRef.current);
-            hoverTimerRef.current = null;
-        }
+        if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
         setShowMoneyRain(false);
     };
-
-
-    // --- Transactions (Stand-alone) State ---
-    const [transactions, setTransactions] = useState<Transaction[]>(() => {
-        try {
-            const saved = localStorage.getItem('transactions');
-            return saved ? JSON.parse(saved) : [];
-        } catch {
-            return [];
-        }
-    });
-
-    useEffect(() => {
-        localStorage.setItem('transactions', JSON.stringify(transactions));
-    }, [transactions]);
-
-    // --- Monthly Goal Logic & Persistence ---
-    const [viewDate, setViewDate] = useState(new Date());
-
-    const [monthlyGoals, setMonthlyGoals] = useState<Record<string, number>>(() => {
-        try {
-            const saved = localStorage.getItem('monthlyGoals');
-            return saved ? JSON.parse(saved) : { [`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`]: 80000 };
-        } catch (e) {
-            return { [`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`]: 80000 };
-        }
-    });
-
-    useEffect(() => {
-        localStorage.setItem('monthlyGoals', JSON.stringify(monthlyGoals));
-    }, [monthlyGoals]);
-
-    const currentMonthKey = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
-
-    const handlePrevMonth = () => {
-        setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    };
-
-    const handleNextMonth = () => {
-        setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    };
-
-    const handleSetGoal = (val: number) => {
-        setMonthlyGoals(prev => ({
-            ...prev,
-            [currentMonthKey]: val
-        }));
-    };
-
-    const monthlyRevenue = useMemo(() => {
-        const key = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
-
-        // 1. OS Logic
-        const monthOrders = orders.filter(order => order.pickupDate.startsWith(key));
-        let cashIn = 0;
-        let cashOut = 0;
-
-        monthOrders.forEach(order => {
-            const received = calculateReceivedAmount(order);
-            cashIn += received;
-            if (order.isCostsPaid) {
-                cashOut += calculateCosts(order.financials);
-            }
-        });
-
-        // 2. Transaction Logic
-        const monthTransactions = transactions.filter(t => t.date.startsWith(key));
-        monthTransactions.forEach(t => {
-            if (t.type === 'income') cashIn += t.amount;
-            if (t.type === 'expense') cashOut += t.amount;
-        });
-
-        return cashIn - cashOut;
-    }, [orders, transactions, viewDate]);
-
-    // --- Revenue Card Pagination Logic ---
-    const [revenueViewDate, setRevenueViewDate] = useState(new Date());
 
     const handlePrevRevenueMonth = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -237,34 +173,43 @@ function App() {
         setRevenueViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
     };
 
-    const revenueViewValue = useMemo(() => {
-        const key = `${revenueViewDate.getFullYear()}-${String(revenueViewDate.getMonth() + 1).padStart(2, '0')}`;
-
-        // 1. OS Logic
+    // --- MEMOS ---
+    const monthlyRevenue = useMemo(() => {
+        const key = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
         const monthOrders = orders.filter(order => order.pickupDate.startsWith(key));
         let cashIn = 0;
         let cashOut = 0;
-
         monthOrders.forEach(order => {
             const received = calculateReceivedAmount(order);
             cashIn += received;
-            if (order.isCostsPaid) {
-                cashOut += calculateCosts(order.financials);
-            }
+            if (order.isCostsPaid) cashOut += calculateCosts(order.financials);
         });
-
-        // 2. Transaction Logic
         const monthTransactions = transactions.filter(t => t.date.startsWith(key));
         monthTransactions.forEach(t => {
             if (t.type === 'income') cashIn += t.amount;
             if (t.type === 'expense') cashOut += t.amount;
         });
+        return cashIn - cashOut;
+    }, [orders, transactions, viewDate]);
 
+    const revenueViewValue = useMemo(() => {
+        const key = `${revenueViewDate.getFullYear()}-${String(revenueViewDate.getMonth() + 1).padStart(2, '0')}`;
+        const monthOrders = orders.filter(order => order.pickupDate.startsWith(key));
+        let cashIn = 0;
+        let cashOut = 0;
+        monthOrders.forEach(order => {
+            const received = calculateReceivedAmount(order);
+            cashIn += received;
+            if (order.isCostsPaid) cashOut += calculateCosts(order.financials);
+        });
+        const monthTransactions = transactions.filter(t => t.date.startsWith(key));
+        monthTransactions.forEach(t => {
+            if (t.type === 'income') cashIn += t.amount;
+            if (t.type === 'expense') cashOut += t.amount;
+        });
         return cashIn - cashOut;
     }, [orders, transactions, revenueViewDate]);
 
-
-    // --- Financial Logic (Global Pending Only) ---
     const globalPending = useMemo(() => {
         let pendingReceivables = 0;
         orders.forEach(order => {
@@ -273,7 +218,6 @@ function App() {
         });
         return pendingReceivables;
     }, [orders]);
-
 
     // --- Actions ---
 
@@ -284,32 +228,56 @@ function App() {
         setTimeout(() => setShowSuccessToast(false), 1900);
     };
 
-    const handleCreate = (newOrder: ServiceOrder) => {
-        setOrders(prev => [newOrder, ...prev]);
-        triggerSaveSuccess();
+    const handleCreate = async (newOrder: ServiceOrder) => {
+        try {
+            await createServiceOrder(newOrder);
+            await fetchData(); // Refresh data
+            triggerSaveSuccess();
+        } catch (error) {
+            console.error('Error creating order:', error);
+            alert('Erro ao criar ordem.');
+        }
     };
 
-    const handleUpdate = (updatedOrder: ServiceOrder) => {
-        setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
-        triggerSaveSuccess();
+    const handleUpdate = async (updatedOrder: ServiceOrder) => {
+        try {
+            await updateServiceOrder(updatedOrder);
+            await fetchData(); // Refresh data
+            triggerSaveSuccess();
+        } catch (error) {
+            console.error('Error updating order:', error);
+            alert('Erro ao atualizar ordem.');
+        }
     };
 
-    const handleAddTransaction = (newTransaction: Transaction) => {
-        setTransactions(prev => [newTransaction, ...prev]);
-        setShowSuccessToast(true);
-        setTimeout(() => setShowSuccessToast(false), 1900);
+    const handleAddTransaction = async (newTransaction: Transaction) => {
+        try {
+            await createTransaction(newTransaction);
+            await fetchData(); // Refresh data
+            setShowSuccessToast(true);
+            setTimeout(() => setShowSuccessToast(false), 1900);
+        } catch (error) {
+            console.error('Error adding transaction:', error);
+            alert('Erro ao adicionar transação.');
+        }
     };
 
     const onRequestDelete = (id: string) => {
         setDeleteId(id);
     };
 
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (deleteId) {
-            setOrders(prev => prev.filter(o => o.id !== deleteId));
-            setDeleteId(null);
-            setIsFormOpen(false);
-            setEditingOrder(null);
+            try {
+                await deleteServiceOrder(deleteId);
+                await fetchData(); // Refresh data
+                setDeleteId(null);
+                setIsFormOpen(false);
+                setEditingOrder(null);
+            } catch (error) {
+                console.error('Error deleting order:', error);
+                alert('Erro ao excluir ordem.');
+            }
         }
     };
 
@@ -321,6 +289,32 @@ function App() {
     const openNew = () => {
         setEditingOrder(null);
         setIsFormOpen(true);
+    };
+
+    // --- Monthly Goal Logic ---
+
+    const currentMonthKey = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
+
+    const handlePrevMonth = () => {
+        setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    };
+
+    const handleNextMonth = () => {
+        setViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    };
+
+    const handleSetGoal = async (val: number) => {
+        try {
+            await setMonthlyGoal(currentMonthKey, val);
+            // Optimistic update or refresh
+            setMonthlyGoals(prev => ({
+                ...prev,
+                [currentMonthKey]: val
+            }));
+        } catch (error) {
+            console.error('Error setting goal:', error);
+            alert('Erro ao definir meta.');
+        }
     };
 
     // --- Filtering & Sorting & Counts ---
