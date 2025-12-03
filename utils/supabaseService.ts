@@ -238,7 +238,7 @@ export const setMonthlyGoal = async (monthKey: string, value: number) => {
             user_id: user.id,
             month_key: monthKey,
             goal_value: value
-        });
+        }, { onConflict: 'user_id, month_key' });
 
     if (error) throw error;
 };
