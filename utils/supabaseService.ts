@@ -8,7 +8,8 @@ export const fetchServiceOrders = async (): Promise<ServiceOrder[]> => {
         .from('service_orders')
         .select(`
       *,
-      extra_services (*)
+      extra_services (*),
+      order_notes (*)
     `)
         .order('pickup_date', { ascending: true });
 
@@ -42,7 +43,12 @@ export const fetchServiceOrders = async (): Promise<ServiceOrder[]> => {
         },
         pickupDate: o.pickup_date,
         deliveryForecast: o.delivery_forecast,
-        notes: o.notes,
+        notes: o.order_notes.map((n: any) => ({
+            id: n.id,
+            content: n.content,
+            color: n.color,
+            createdAt: n.created_at
+        })),
         noteTags: o.note_tags,
         createdAt: o.created_at
     }));
@@ -73,7 +79,7 @@ export const createServiceOrder = async (order: ServiceOrder) => {
             driver_cost: order.financials.driverCost,
             pickup_date: order.pickupDate,
             delivery_forecast: order.deliveryForecast,
-            notes: order.notes,
+            // notes: order.notes, // REMOVED: Now using separate table
             note_tags: order.noteTags
         });
 
@@ -95,6 +101,22 @@ export const createServiceOrder = async (order: ServiceOrder) => {
             .insert(extrasToInsert);
 
         if (extrasError) throw extrasError;
+    }
+
+    // 3. Insert Notes
+    if (order.notes && order.notes.length > 0) {
+        const notesToInsert = order.notes.map(n => ({
+            service_order_id: order.id,
+            user_id: user.id,
+            content: n.content,
+            color: n.color
+        }));
+
+        const { error: notesError } = await supabase
+            .from('order_notes')
+            .insert(notesToInsert);
+
+        if (notesError) throw notesError;
     }
 };
 
@@ -121,7 +143,7 @@ export const updateServiceOrder = async (order: ServiceOrder) => {
             driver_cost: order.financials.driverCost,
             pickup_date: order.pickupDate,
             delivery_forecast: order.deliveryForecast,
-            notes: order.notes,
+            // notes: order.notes, // REMOVED
             note_tags: order.noteTags,
             updated_at: new Date().toISOString()
         })
@@ -152,6 +174,29 @@ export const updateServiceOrder = async (order: ServiceOrder) => {
             .insert(extrasToInsert);
 
         if (insertError) throw insertError;
+    }
+
+    // 3. Sync Notes (Delete all and re-insert)
+    const { error: deleteNotesError } = await supabase
+        .from('order_notes')
+        .delete()
+        .eq('service_order_id', order.id);
+
+    if (deleteNotesError) throw deleteNotesError;
+
+    if (order.notes && order.notes.length > 0) {
+        const notesToInsert = order.notes.map(n => ({
+            service_order_id: order.id,
+            user_id: user.id,
+            content: n.content,
+            color: n.color
+        }));
+
+        const { error: insertNotesError } = await supabase
+            .from('order_notes')
+            .insert(notesToInsert);
+
+        if (insertNotesError) throw insertNotesError;
     }
 };
 

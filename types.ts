@@ -3,7 +3,7 @@ export type ServiceType = 'helper' | 'assembler' | 'packer' | 'other';
 
 export interface ExtraService {
   id: string;
-  type: ServiceType; 
+  type: ServiceType;
   name: string; // "Ajudante", "Montador", etc.
   qty: number;
   cost: number; // Unit cost
@@ -25,9 +25,16 @@ export interface PaymentStatus {
 export type ProgressStage = 20 | 60 | 100;
 
 // Changed to string to allow Hex codes for custom colors
-export type NoteColor = string; 
+export type NoteColor = string;
 
 export type ViewMode = 'default' | 'grid' | 'compact' | 'list' | 'expanded';
+
+export interface OrderNote {
+  id: string;
+  content: string;
+  color: NoteColor;
+  createdAt: string;
+}
 
 export interface ServiceOrder {
   id: string;
@@ -35,23 +42,23 @@ export interface ServiceOrder {
   whatsapp: string;
   origin: string;
   destination: string;
-  
+
   // Status Flags
   isContractSigned: boolean;
   isPostedFretebras: boolean;
-  
+
   // Financial Status
   paymentStatus: PaymentStatus;
   isCostsPaid: boolean; // Se os custos (motorista + extras) já foram pagos pela empresa
 
   progress: ProgressStage;
-  
+
   financials: Financials;
-  
+
   pickupDate: string;
   deliveryForecast: string;
-  notes: string;
-  noteTags: NoteColor; // Color/Priority for the note (Hex or preset)
+  notes: OrderNote[]; // Changed to array of notes
+  noteTags: NoteColor; // Main color tag for the card (legacy/summary)
   createdAt: string;
 }
 

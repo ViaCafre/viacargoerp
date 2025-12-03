@@ -34,7 +34,7 @@ const emptyOrder: Omit<ServiceOrder, 'id' | 'createdAt'> = {
     },
     pickupDate: '',
     deliveryForecast: '',
-    notes: '',
+    notes: [],
     noteTags: '#334155' // Default slate-700 hex equivalent
 };
 
@@ -538,24 +538,102 @@ export const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSubmit,
                                 <div className="flex items-center justify-between text-slate-400 mb-2 border-b border-white/5 pb-2">
                                     <div className="flex items-center gap-2">
                                         <FileText size={18} />
-                                        <h3 className="text-sm font-bold uppercase tracking-widest">Observações</h3>
+                                        <h3 className="text-sm font-bold uppercase tracking-widest">Observações (Kanban)</h3>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <span className="text-[10px] uppercase font-bold flex items-center gap-1"><PaintBucket size={10} /> Cor / Destaque</span>
+                                        <span className="text-[10px] uppercase font-bold flex items-center gap-1"><PaintBucket size={10} /> Cor da Nota</span>
                                         <NoteColorPicker selected={formData.noteTags || '#334155'} onSelect={(c) => setFormData({ ...formData, noteTags: c })} />
                                     </div>
                                 </div>
-                                <textarea
-                                    rows={3}
-                                    value={formData.notes}
-                                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                                    style={{
-                                        borderColor: formData.noteTags && formData.noteTags.startsWith('#') ? formData.noteTags : undefined,
-                                        boxShadow: formData.noteTags && formData.noteTags.startsWith('#') ? `0 0 15px -3px ${formData.noteTags}40` : undefined
-                                    }}
-                                    className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-slate-300 placeholder-slate-600 focus:outline-none transition-all text-sm resize-none"
-                                    placeholder="Instruções especiais, restrições de horário, etc."
-                                />
+
+                                {/* Notes List */}
+                                <div className="space-y-3 mb-4">
+                                    {formData.notes && Array.isArray(formData.notes) && formData.notes.map((note: any, index: number) => (
+                                        <div
+                                            key={note.id || index}
+                                            className="p-3 rounded-lg border border-white/5 relative group transition-all hover:scale-[1.01]"
+                                            style={{ backgroundColor: `${note.color}20`, borderColor: `${note.color}40` }}
+                                        >
+                                            <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                                            <div className="flex justify-between items-center mt-2">
+                                                <span className="text-[10px] text-slate-500 font-mono" style={{ color: note.color }}>
+                                                    {new Date(note.createdAt || Date.now()).toLocaleDateString('pt-BR')}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newNotes = formData.notes.filter((_: any, i: number) => i !== index);
+                                                        setFormData({ ...formData, notes: newNotes });
+                                                    }}
+                                                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded bg-slate-900/50 text-slate-400 hover:text-rose-500 transition-all"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {(!formData.notes || formData.notes.length === 0) && (
+                                        <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-slate-600 text-xs">
+                                            Nenhuma observação registrada.
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Add New Note Input */}
+                                <div className="flex gap-2 items-start">
+                                    <textarea
+                                        rows={2}
+                                        id="new-note-input"
+                                        className="flex-1 bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-slate-300 placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 transition-all text-sm resize-none"
+                                        placeholder="Digite uma nova observação..."
+                                        spellCheck={true}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                const content = e.currentTarget.value.trim();
+                                                if (content) {
+                                                    const newNote = {
+                                                        id: `temp-${Date.now()}`,
+                                                        content: content,
+                                                        color: formData.noteTags || '#334155',
+                                                        createdAt: new Date().toISOString()
+                                                    };
+                                                    setFormData({
+                                                        ...formData,
+                                                        notes: [...(formData.notes || []), newNote]
+                                                    });
+                                                    e.currentTarget.value = '';
+                                                }
+                                            }
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const input = document.getElementById('new-note-input') as HTMLTextAreaElement;
+                                            const content = input.value.trim();
+                                            if (content) {
+                                                const newNote = {
+                                                    id: `temp-${Date.now()}`,
+                                                    content: content,
+                                                    color: formData.noteTags || '#334155',
+                                                    createdAt: new Date().toISOString()
+                                                };
+                                                setFormData({
+                                                    ...formData,
+                                                    notes: [...(formData.notes || []), newNote]
+                                                });
+                                                input.value = '';
+                                            }
+                                        }}
+                                        className="p-3 bg-slate-800 hover:bg-emerald-600 text-slate-400 hover:text-white rounded-xl transition-colors"
+                                    >
+                                        <Plus size={20} />
+                                    </button>
+                                </div>
+                                <p className="text-[10px] text-slate-600 mt-2 ml-1">
+                                    * Pressione Enter para adicionar. Use Shift+Enter para quebra de linha. A cor selecionada acima será aplicada à nova nota.
+                                </p>
                             </div>
 
                         </form>
