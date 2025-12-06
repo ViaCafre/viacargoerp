@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Truck, Users, Hammer, Box, Printer, FileText, MessageSquarePlus, Upload, Image as ImageIcon, ChevronLeft, Check, AlertCircle, PenTool, Eraser, FileSignature } from 'lucide-react';
-import { ServiceOrder, DriverData } from '../types';
+import { X, Truck, Users, Hammer, Box, Printer, FileText, MessageSquarePlus, Upload, Image as ImageIcon, ChevronLeft, Check, AlertCircle, PenTool, Eraser, FileSignature, Clock } from 'lucide-react';
+import { ServiceOrder, DriverData, TeamOrderData } from '../types';
 import { generateTeamPDF, generateDriverPDF, PdfRoleTarget } from '../utils/pdfGenerator';
 import { Input } from './ui/Input';
 
@@ -15,13 +15,22 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
     const [customNote, setCustomNote] = useState('');
 
     // Driver Form State
-    const [view, setView] = useState<'menu' | 'driver-form'>('menu');
+    const [view, setView] = useState<'menu' | 'driver-form' | 'team-selection'>('menu');
     const [driverData, setDriverData] = useState<DriverData>({
         fullName: '', cpf: '', cnh: '', ntrc: '', category: '',
         phone: '', uf: '', plate: '', vehicle: '', validity: '',
         inventoryList: '', issuerSignature: null
     });
     const [includeInventory, setIncludeInventory] = useState(false);
+
+    // Team Selection State
+    const [selectedRole, setSelectedRole] = useState<PdfRoleTarget | null>(null);
+    const [teamData, setTeamData] = useState<TeamOrderData>({
+        quantity: 1,
+        scheduledTime: '',
+        unitCost: 0,
+        calculatedCost: 0
+    });
 
     // File Refs
     const cnhInputRef = useRef<HTMLInputElement>(null);
@@ -47,6 +56,13 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
         setCnhFileName(null);
         setSignatureFileName(null);
         setIsGenerating(false);
+        setSelectedRole(null);
+        setTeamData({
+            quantity: 1,
+            scheduledTime: '',
+            unitCost: 0,
+            calculatedCost: 0
+        });
     };
 
     const handleClose = () => {
@@ -54,9 +70,46 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
         onClose();
     };
 
-    // Generic PDF Generation (Helpers, etc)
-    const handleGenerateGeneric = (role: PdfRoleTarget, label: string) => {
-        generateTeamPDF(order, role, label, customNote);
+    // Open Team Selection View
+    const handleOpenTeamSelection = (role: PdfRoleTarget) => {
+        // Get the extras for this role and calculate unit cost
+        const extras = order.financials.extras.filter(e => {
+            if (role === 'ajudante' && e.type === 'helper') return true;
+            if (role === 'montador' && e.type === 'assembler') return true;
+            if (role === 'embalador' && e.type === 'packer') return true;
+            return false;
+        });
+
+        const totalQty = extras.reduce((acc, curr) => acc + curr.qty, 0);
+        const unitCost = extras.length > 0 ? extras[0].cost : 0;
+
+        setSelectedRole(role);
+        setTeamData({
+            quantity: totalQty > 0 ? totalQty : 1,
+            scheduledTime: '',
+            unitCost: unitCost,
+            calculatedCost: unitCost * (totalQty > 0 ? totalQty : 1)
+        });
+        setView('team-selection');
+    };
+
+    // Generate Team PDF with selected quantity and time
+    const handleGenerateTeam = () => {
+        if (!teamData.scheduledTime) {
+            alert('Por favor, informe o horário no local.');
+            return;
+        }
+        if (!selectedRole) return;
+
+        const roleLabels = {
+            'ajudante': 'Ajudantes',
+            'montador': 'Montadores',
+            'embalador': 'Embaladores',
+            'motorista': 'Motorista',
+            'geral': 'Geral'
+        };
+
+        generateTeamPDF(order, selectedRole, roleLabels[selectedRole], customNote, teamData);
         handleClose();
     };
 
@@ -134,7 +187,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
                                 <div>
                                     <h3 className="text-lg font-bold text-white flex items-center gap-2 justify-center">
                                         <Printer size={18} className="text-emerald-400" />
-                                        {view === 'driver-form' ? 'Dados do Motorista' : 'Imprimir Ordem'}
+                                        {view === 'driver-form' ? 'Dados do Motorista' : view === 'team-selection' ? 'Configurar Ordem' : 'Imprimir Ordem'}
                                     </h3>
                                 </div>
 
@@ -144,6 +197,82 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
                             </div>
 
                             <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-900">
+
+                                {/* --- TEAM SELECTION VIEW --- */}
+                                {view === 'team-selection' && selectedRole && (
+                                    <div className="p-6 space-y-6">
+                                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
+                                            <AlertCircle className="text-blue-400 shrink-0 mt-0.5" size={18} />
+                                            <div>
+                                                <h4 className="text-xs font-bold text-blue-400 uppercase">Configuração da Ordem</h4>
+                                                <p className="text-[10px] text-blue-300/80 leading-relaxed mt-1">
+                                                    Selecione a quantidade de profissionais e o horário no local.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Quantity Selector */}
+                                        <div className="space-y-3">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Quantidade de Profissionais</label>
+                                            <div className="flex items-center gap-4">
+                                                <button
+                                                    onClick={() => setTeamData(prev => {
+                                                        const newQty = Math.max(1, prev.quantity - 1);
+                                                        return { ...prev, quantity: newQty, calculatedCost: newQty * prev.unitCost };
+                                                    })}
+                                                    className="w-10 h-10 rounded-lg bg-slate-800 border border-white/10 hover:bg-slate-700 text-white font-bold text-lg"
+                                                >
+                                                    -
+                                                </button>
+                                                <div className="flex-1 text-center">
+                                                    <div className="text-3xl font-bold text-white">{teamData.quantity}</div>
+                                                    <div className="text-xs text-slate-500">profissionais</div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setTeamData(prev => {
+                                                        const newQty = prev.quantity + 1;
+                                                        return { ...prev, quantity: newQty, calculatedCost: newQty * prev.unitCost };
+                                                    })}
+                                                    className="w-10 h-10 rounded-lg bg-slate-800 border border-white/10 hover:bg-slate-700 text-white font-bold text-lg"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Time Input */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Clock size={14} />
+                                                Horário no Local (Obrigatório)
+                                            </label>
+                                            <input
+                                                type="time"
+                                                value={teamData.scheduledTime}
+                                                onChange={(e) => setTeamData(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                                                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 transition-all"
+                                                required
+                                            />
+                                        </div>
+
+                                        {/* Cost Calculation Display */}
+                                        <div className="bg-slate-950/50 border border-white/10 rounded-xl p-4 space-y-2">
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-slate-400">Valor Unitário:</span>
+                                                <span className="text-white font-bold">R$ {teamData.unitCost.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-slate-400">Quantidade:</span>
+                                                <span className="text-white font-bold">{teamData.quantity}x</span>
+                                            </div>
+                                            <div className="h-px bg-white/10 my-2"></div>
+                                            <div className="flex justify-between text-lg">
+                                                <span className="text-emerald-400 font-bold">Valor Total:</span>
+                                                <span className="text-emerald-400 font-bold">R$ {teamData.calculatedCost.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* --- MENU VIEW --- */}
                                 {view === 'menu' && (
@@ -189,7 +318,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
                                             {/* Standard Buttons */}
                                             {hasHelper && (
                                                 <button
-                                                    onClick={() => handleGenerateGeneric('ajudante', 'Ajudantes')}
+                                                    onClick={() => handleOpenTeamSelection('ajudante')}
                                                     className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/10 transition-all group"
                                                 >
                                                     <div className="flex items-center gap-3">
@@ -202,18 +331,24 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
                                                 </button>
                                             )}
 
-                                            {/* Assemblers & Packers (Simplified for brevity in this view) */}
+                                            {/* Assemblers & Packers */}
                                             {hasAssembler && (
-                                                <button onClick={() => handleGenerateGeneric('montador', 'Montadores')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-white/5 hover:border-amber-500/50 hover:bg-amber-500/10 transition-all group"
+                                                <button onClick={() => handleOpenTeamSelection('montador')} className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-white/5 hover:border-amber-500/50 hover:bg-amber-500/10 transition-all group"
                                                 >
-                                                    <div className="p-2 bg-slate-950 rounded-lg text-slate-500 group-hover:text-amber-400"><Hammer size={18} /></div>
-                                                    <span className="text-sm font-bold text-slate-200">Montadores</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-slate-950 rounded-lg text-slate-500 group-hover:text-amber-400"><Hammer size={18} /></div>
+                                                        <span className="text-sm font-bold text-slate-200 group-hover:text-white">Montadores</span>
+                                                    </div>
+                                                    <FileText size={16} className="text-slate-600 group-hover:text-amber-500" />
                                                 </button>
                                             )}
                                             {hasPacker && (
-                                                <button onClick={() => handleGenerateGeneric('embalador', 'Embaladores')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-white/5 hover:border-violet-500/50 hover:bg-violet-500/10 transition-all group">
-                                                    <div className="p-2 bg-slate-950 rounded-lg text-slate-500 group-hover:text-violet-400"><Box size={18} /></div>
-                                                    <span className="text-sm font-bold text-slate-200">Embaladores</span>
+                                                <button onClick={() => handleOpenTeamSelection('embalador')} className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-800/50 border border-white/5 hover:border-violet-500/50 hover:bg-violet-500/10 transition-all group">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-slate-950 rounded-lg text-slate-500 group-hover:text-violet-400"><Box size={18} /></div>
+                                                        <span className="text-sm font-bold text-slate-200 group-hover:text-white">Embaladores</span>
+                                                    </div>
+                                                    <FileText size={16} className="text-slate-600 group-hover:text-violet-500" />
                                                 </button>
                                             )}
                                         </div>
@@ -334,6 +469,13 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
                                         className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {isGenerating ? 'Gerando...' : <><Printer size={18} /> Gerar PDF do Motorista</>}
+                                    </button>
+                                ) : view === 'team-selection' ? (
+                                    <button
+                                        onClick={handleGenerateTeam}
+                                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Printer size={18} /> Gerar PDF
                                     </button>
                                 ) : (
                                     <button onClick={handleClose} className="w-full py-3 text-xs font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-wider">

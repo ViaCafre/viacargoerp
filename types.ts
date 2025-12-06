@@ -88,6 +88,14 @@ export interface DriverData {
   issuerSignature?: string | null; // Base64 signature of Via Cargo Manager
 }
 
+// Interface for Team Order Data (Helpers, Assemblers, Packers)
+export interface TeamOrderData {
+  quantity: number;
+  scheduledTime: string; // HH:MM format
+  unitCost: number; // Cost per professional
+  calculatedCost: number; // quantity * unitCost
+}
+
 export const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
