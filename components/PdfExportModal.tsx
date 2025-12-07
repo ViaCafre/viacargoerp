@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Truck, Users, Hammer, Box, Printer, FileText, MessageSquarePlus, Upload, Image as ImageIcon, ChevronLeft, Check, AlertCircle, PenTool, Eraser, FileSignature, Clock } from 'lucide-react';
+import { X, Truck, Users, Hammer, Box, Printer, FileText, MessageSquarePlus, Upload, Image as ImageIcon, ChevronLeft, Check, AlertCircle, PenTool, Eraser, FileSignature, Clock, MapPin, Calendar } from 'lucide-react';
 import { ServiceOrder, DriverData, TeamOrderData } from '../types';
 import { generateTeamPDF, generateDriverPDF, PdfRoleTarget } from '../utils/pdfGenerator';
 import { Input } from './ui/Input';
@@ -29,7 +29,9 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
         quantity: 1,
         scheduledTime: '',
         unitCost: 0,
-        calculatedCost: 0
+        calculatedCost: 0,
+        workLocation: 'origin',
+        workDate: new Date().toISOString().split('T')[0]
     });
 
     // File Refs
@@ -61,7 +63,10 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
             quantity: 1,
             scheduledTime: '',
             unitCost: 0,
-            calculatedCost: 0
+            calculatedCost: 0,
+            workLocation: 'origin',
+            workDate: new Date().toISOString().split('T')[0],
+            itemsList: ''
         });
     };
 
@@ -88,7 +93,10 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
             quantity: totalQty > 0 ? totalQty : 1,
             scheduledTime: '',
             unitCost: unitCost,
-            calculatedCost: unitCost * (totalQty > 0 ? totalQty : 1)
+            calculatedCost: unitCost * (totalQty > 0 ? totalQty : 1),
+            workLocation: 'origin',
+            workDate: new Date().toISOString().split('T')[0],
+            itemsList: ''
         });
         setView('team-selection');
     };
@@ -97,6 +105,10 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
     const handleGenerateTeam = () => {
         if (!teamData.scheduledTime) {
             alert('Por favor, informe o horário no local.');
+            return;
+        }
+        if (!teamData.workDate) {
+            alert('Por favor, informe a data.');
             return;
         }
         if (!selectedRole) return;
@@ -240,20 +252,81 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
                                             </div>
                                         </div>
 
-                                        {/* Time Input */}
-                                        <div className="space-y-2">
+                                        {/* Address Selection */}
+                                        <div className="space-y-3">
                                             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                                <Clock size={14} />
-                                                Horário no Local (Obrigatório)
+                                                <MapPin size={14} />
+                                                Local de Atuação
                                             </label>
-                                            <input
-                                                type="time"
-                                                value={teamData.scheduledTime}
-                                                onChange={(e) => setTeamData(prev => ({ ...prev, scheduledTime: e.target.value }))}
-                                                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 transition-all"
-                                                required
-                                            />
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    onClick={() => setTeamData(prev => ({ ...prev, workLocation: 'origin' }))}
+                                                    className={`p-3 rounded-xl border-2 transition-all ${teamData.workLocation === 'origin'
+                                                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                                                        : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-600'
+                                                        }`}
+                                                >
+                                                    <div className="text-xs font-bold mb-1">ORIGEM / COLETA</div>
+                                                    <div className="text-[10px] opacity-80 line-clamp-2">{order.origin}</div>
+                                                </button>
+                                                <button
+                                                    onClick={() => setTeamData(prev => ({ ...prev, workLocation: 'destination' }))}
+                                                    className={`p-3 rounded-xl border-2 transition-all ${teamData.workLocation === 'destination'
+                                                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                                                        : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-600'
+                                                        }`}
+                                                >
+                                                    <div className="text-xs font-bold mb-1">DESTINO / ENTREGA</div>
+                                                    <div className="text-[10px] opacity-80 line-clamp-2">{order.destination}</div>
+                                                </button>
+                                            </div>
                                         </div>
+
+                                        {/* Date and Time */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <Calendar size={14} />
+                                                    Data
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    value={teamData.workDate}
+                                                    onChange={(e) => setTeamData(prev => ({ ...prev, workDate: e.target.value }))}
+                                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <Clock size={14} />
+                                                    Horário no Local
+                                                </label>
+                                                <input
+                                                    type="time"
+                                                    value={teamData.scheduledTime}
+                                                    onChange={(e) => setTeamData(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Items List (only for Montador/Embalador) */}
+                                        {(selectedRole === 'montador' || selectedRole === 'embalador') && (
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                    <Box size={14} />
+                                                    {selectedRole === 'montador' ? 'Móveis para Montar/Desmontar' : 'Lista de Itens para Embalar'}
+                                                </label>
+                                                <textarea
+                                                    value={teamData.itemsList}
+                                                    onChange={(e) => setTeamData(prev => ({ ...prev, itemsList: e.target.value }))}
+                                                    placeholder={selectedRole === 'montador' ? "Ex: 1 Guarda-roupa 6 portas, 1 Cama Box Casal..." : "Ex: Louças da cozinha, Roupas do quarto..."}
+                                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500/50 transition-all h-24 resize-none"
+                                                />
+                                            </div>
+                                        )}
 
                                         {/* Cost Calculation Display */}
                                         <div className="bg-slate-950/50 border border-white/10 rounded-xl p-4 space-y-2">
@@ -369,7 +442,12 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
                                         </div>
 
                                         <div className="space-y-4">
-                                            <Input label="Nome Completo" value={driverData.fullName} onChange={e => setDriverData({ ...driverData, fullName: e.target.value })} placeholder="Ex: Carlos Alberto da Silva" />
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <div className="col-span-2">
+                                                    <Input label="Nome Completo" value={driverData.fullName} onChange={e => setDriverData({ ...driverData, fullName: e.target.value })} placeholder="Ex: Carlos Alberto da Silva" />
+                                                </div>
+                                                <Input label="Valor do Frete (R$)" value={driverData.freightValue || ''} onChange={e => setDriverData({ ...driverData, freightValue: e.target.value })} placeholder="0,00" />
+                                            </div>
 
                                             <div className="grid grid-cols-2 gap-4">
                                                 <Input label="CPF" value={driverData.cpf} onChange={e => setDriverData({ ...driverData, cpf: e.target.value })} placeholder="000.000.000-00" />

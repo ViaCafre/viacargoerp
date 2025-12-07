@@ -85,6 +85,8 @@ export interface DriverData {
   validity: string;
   cnhImage?: string | null; // Base64 string
   inventoryList?: string;
+  isValid: boolean;
+  freightValue?: string; // Valor do frete
   issuerSignature?: string | null; // Base64 signature of Via Cargo Manager
 }
 
@@ -94,6 +96,9 @@ export interface TeamOrderData {
   scheduledTime: string; // HH:MM format
   unitCost: number; // Cost per professional
   calculatedCost: number; // quantity * unitCost
+  workLocation: 'origin' | 'destination'; // Where the team will work
+  workDate: string; // Date for the work
+  itemsList?: string; // List of items/furniture (for Montador/Embalador)
 }
 
 export const formatCurrency = (value: number) => {
