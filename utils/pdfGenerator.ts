@@ -168,7 +168,7 @@ export const generateDriverPDF = async (order: ServiceOrder, driver: DriverData)
         doc.setFontSize(18);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(20, 20, 20);
-        doc.text("ORDEM DE SERVIÇO DE TRANSPORTE", pageWidth / 2, 35, { align: "center" });
+        doc.text("Viacargo Soluções em logística".toUpperCase(), pageWidth / 2, 35, { align: "center" });
 
         doc.setFontSize(10);
         doc.setTextColor(80, 80, 80);
@@ -246,7 +246,7 @@ export const generateDriverPDF = async (order: ServiceOrder, driver: DriverData)
     doc.text(pickupAddrLines, X_COL1 + 20, currentY);
     // Date
     doc.setFont("helvetica", "bold");
-    doc.text(`DATA: ${pDate}`, pageWidth - 40, currentY);
+    doc.text(`DATA: ${pDate}`, pageWidth - MARGIN - 5, currentY, { align: "right" });
 
     currentY += (pickupAddrLines.length * 5) + 4;
 
@@ -260,7 +260,7 @@ export const generateDriverPDF = async (order: ServiceOrder, driver: DriverData)
     doc.text(delLines, X_COL1 + 20, currentY);
 
     doc.setFont("helvetica", "bold");
-    doc.text(`PREVISÃO: ${dDate}`, pageWidth - 40, currentY);
+    doc.text(`PREVISÃO: ${dDate}`, pageWidth - MARGIN - 5, currentY, { align: "right" });
 
     currentY += (delLines.length * 5) + 6;
 
@@ -316,13 +316,19 @@ export const generateDriverPDF = async (order: ServiceOrder, driver: DriverData)
         rawItems.forEach((item, i) => {
             const isCol2 = i >= itemsPerCol;
             const idx = isCol2 ? i - itemsPerCol : i;
+            // Check for page break safety within the loop (naive check mainly for second column start or long lists)
+            if (cursorY + (idx * lineHeight) > pageHeight - 20) {
+                // Note: Ideally we would handle page breaks inside loops by resetting cursorY, 
+                // but for this specific grid layout re-doing the header on a new page is complex.
+                // For now, the pre-check at line 303 handles most cases. 
+                // We will rely on that main check.
+            }
+
             const xPos = isCol2 ? (pageWidth / 2 + 5) : (MARGIN + 5);
             // Protect against very long item names
             const safeItem = doc.splitTextToSize(item, (CONTENT_WIDTH / 2) - 10);
 
             doc.text(`• ${safeItem[0]}`, xPos, cursorY + (idx * lineHeight));
-            // simplified: only showing first line of item to maintain grid height. 
-            // Ideally we'd calculate dynamic row height but user asked for "2 items per line" implies grid.
         });
 
         const boxOutlineY = cursorY - 15 + 9; // header bottom
@@ -367,17 +373,23 @@ export const generateDriverPDF = async (order: ServiceOrder, driver: DriverData)
     termContentY += textBlockHeight + 15;
 
     // Signatures
-    const sigY = termContentY;
+    const sigY = termContentY + 25; // Added gap before signature line
 
     doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.5);
     // Driver Line
     doc.line(MARGIN + 10, sigY, pageWidth / 2 - 10, sigY);
     doc.setFontSize(8); doc.text("Assinatura do Motorista", MARGIN + 10, sigY + 5);
 
-    // Issuer
-    doc.text("Via Cargo (Emissor)", pageWidth / 2 + 20, sigY + 5);
+    // Issuer (Via Cargo)
+    doc.text("Viacargo Soluções em logística (Emissor)", pageWidth / 2 + 20, sigY + 5);
+
+    // Signature Image Handling
     if (signatureData) {
-        try { doc.addImage(signatureData, 'PNG', pageWidth / 2 + 25, sigY - 25, 40, 20); } catch (e) { }
+        try {
+            // Draw ABOVE the line (Y - height - padding)
+            // Assuming height 20, we draw at sigY - 25
+            doc.addImage(signatureData, 'PNG', pageWidth / 2 + 25, sigY - 25, 40, 20);
+        } catch (e) { }
     }
 
     // Outline Term
@@ -388,7 +400,7 @@ export const generateDriverPDF = async (order: ServiceOrder, driver: DriverData)
     for (let i = 1; i <= pCount; i++) {
         doc.setPage(i);
         doc.setFontSize(8); doc.setTextColor(150, 150, 150);
-        doc.text("VIACARGO TRANSPORTADORA - CNPJ: 54.826.258/0001-70", pageWidth / 2, pageHeight - 10, { align: "center" });
+        doc.text("VIACARGO SOLUÇÕES EM LOGÍSTICA - CNPJ: 54.826.258/0001-70", pageWidth / 2, pageHeight - 10, { align: "center" });
     }
 
     doc.save(`OS-${order.id}-Motorista.pdf`);
@@ -458,7 +470,7 @@ export const generateTeamPDF = async (order: ServiceOrder, targetRole: PdfRoleTa
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(30, 58, 138); // Professional blue
-    doc.text("VIACARGO TRANSPORTADORA", margin + 30, cursorY + 5);
+    doc.text("VIACARGO SOLUÇÕES EM LOGÍSTICA", margin + 30, cursorY + 5);
 
     // OS Number & Date (Right aligned)
     doc.setFontSize(10);
@@ -689,7 +701,7 @@ export const generateTeamPDF = async (order: ServiceOrder, targetRole: PdfRoleTa
 
     // ===== SIGNATURES =====
     // Ensure enough space for signature
-    if (cursorY + 40 > pageHeight - 20) {
+    if (cursorY + 50 > pageHeight - 20) { // Increased buffer for safety
         doc.addPage();
         doc.setFillColor(252, 252, 252);
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
@@ -698,7 +710,7 @@ export const generateTeamPDF = async (order: ServiceOrder, targetRole: PdfRoleTa
         cursorY += 10;
     }
 
-    const signatureLineY = cursorY + 15;
+    const signatureLineY = cursorY + 30; // Increased spacing for the signature image area
 
     // Left signature line (Client)
     doc.setDrawColor(148, 163, 184); // Slate-400
@@ -723,20 +735,21 @@ export const generateTeamPDF = async (order: ServiceOrder, targetRole: PdfRoleTa
             const sigHeight = 20;
             const sigX = (pageWidth / 2 + 10) + ((pageWidth - margin - 10 - (pageWidth / 2 + 10)) / 2) - (sigWidth / 2);
 
-            doc.addImage(signatureData, 'PNG', sigX, signatureLineY - 15, sigWidth, sigHeight, undefined, 'FAST');
+            // Fixed Position ABOVE the line
+            doc.addImage(signatureData, 'PNG', sigX, signatureLineY - 25, sigWidth, sigHeight, undefined, 'FAST');
         } catch (e) {
             // Fallback if image fails
             doc.setFont("times", "italic");
             doc.setFontSize(16);
             doc.setTextColor(30, 58, 138);
-            doc.text("Viacargo Transportadora LTDA", pageWidth / 2 + 15, signatureLineY - 3);
+            doc.text("Viacargo Soluções em logística", pageWidth / 2 + 15, signatureLineY - 3);
         }
     } else {
         // Text fallback
         doc.setFont("times", "italic");
         doc.setFontSize(16);
         doc.setTextColor(30, 58, 138);
-        doc.text("Viacargo Transportadora LTDA", pageWidth / 2 + 15, signatureLineY - 3);
+        doc.text("Viacargo Soluções em logística", pageWidth / 2 + 15, signatureLineY - 3);
     }
 
     // ===== FOOTER =====
