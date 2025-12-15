@@ -4,6 +4,9 @@ import { X, Truck, Users, Hammer, Box, Printer, FileText, MessageSquarePlus, Upl
 import { ServiceOrder, DriverData, TeamOrderData } from '../types';
 import { generateTeamPDF, generateDriverPDF, PdfRoleTarget } from '../utils/pdfGenerator';
 import { Input } from './ui/Input';
+import { PrintableServiceOrder, PrintRole } from './PrintableServiceOrder';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 interface PdfExportModalProps {
     isOpen: boolean;
@@ -37,6 +40,14 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
     // File Refs
     const cnhInputRef = useRef<HTMLInputElement>(null);
     const signatureInputRef = useRef<HTMLInputElement>(null);
+    const printRef = useRef<HTMLDivElement>(null);
+
+    // Printing State to control what is rendered in the "Ghost Element"
+    const [printingState, setPrintingState] = useState<{
+        role: PrintRole;
+        config?: any;
+        driverData?: DriverData;
+    } | null>(null);
 
     // Filenames for UI feedback
     const [cnhFileName, setCnhFileName] = useState<string | null>(null);
@@ -101,7 +112,120 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
         setView('team-selection');
     };
 
-    // Generate Team PDF with selected quantity and time
+    // --- DOM-BASED PDF GENERATION ENGINE ---
+    const handleDownloadPDF = async () => {
+        if (!printRef.current || !order) return;
+
+        try {
+            // 1. GHOST CONTAINER (Mundo ideal A4)
+            // We create a temporary container to ensure the capture is clean
+            const container = document.createElement('div');
+            container.style.position = 'fixed';
+            container.style.top = '-10000px';
+            container.style.left = '-10000px';
+            container.style.width = '794px'; // A4 width px
+            container.style.zIndex = '-9999';
+            document.body.appendChild(container);
+
+            // 2. CLONE
+            // We clone the React-rendered element to manipulate it freely
+            const clone = printRef.current.cloneNode(true) as HTMLElement;
+            clone.style.width = '794px';
+            clone.style.height = 'auto'; // Let it grow
+            clone.style.display = 'block'; // Ensure it's visible in the clone
+            container.appendChild(clone);
+
+            // --- CORREÇÃO DE IMAGENS ---
+            // Seleciona todas as imagens dentro do clone
+            const images = clone.querySelectorAll('img');
+            const imagePromises = Array.from(images).map(img => {
+                if (img.complete) return Promise.resolve();
+                return new Promise((resolve) => {
+                    img.onload = resolve;
+                    img.onerror = resolve; // Resolve mesmo com erro para não travar
+                });
+            });
+
+            // Aguarda todas carregarem ou timeout de 1s (segurança)
+            await Promise.race([
+                Promise.all(imagePromises),
+                new Promise(resolve => setTimeout(resolve, 1000))
+            ]);
+            // ---------------------------
+
+            // 3. SMART BREAK (Algoritmo Anti-Corte)
+            const PAGE_HEIGHT = 1123; // A4 height px at 96 DPI
+            const CONTENT_HEIGHT = 1050; // Usable safe height per page (leaving margins)
+
+            // Query safe blocks (semantic sections)
+            const blocks = clone.querySelectorAll('.print-safe-block, .print-block');
+            let currentY = 0;
+
+            blocks.forEach((el: any) => {
+                const height = el.offsetHeight;
+                const endY = currentY + height;
+
+                const startPage = Math.floor(currentY / CONTENT_HEIGHT);
+                const endPage = Math.floor(endY / CONTENT_HEIGHT);
+
+                if (endPage > startPage) {
+                    // This block would be cut! Push it to the next page.
+                    const spacer = (startPage + 1) * CONTENT_HEIGHT - currentY;
+                    el.style.marginTop = `${spacer + 30}px`; // Add margin + buffer
+                    currentY += spacer + 30 + height;
+                } else {
+                    currentY += height;
+                }
+            });
+
+            // 4. CAPTURE & GENERATE
+            // Wait for images to load if needed (though React should have them)
+            const canvas = await html2canvas(clone, {
+                scale: 2, // 2x scale for Retina-like quality
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                windowWidth: 794
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = 210;
+            const pdfHeight = 297;
+
+            // Convert px height to mm for PDF mapping
+            const imgHeightMM = (canvas.height * pdfWidth) / canvas.width;
+
+            let heightLeft = imgHeightMM;
+            let position = 0;
+
+            // Page Loop
+            doc.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeightMM);
+            heightLeft -= pdfHeight;
+
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeightMM; // Shift image up
+                doc.addPage();
+                doc.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeightMM);
+                heightLeft -= pdfHeight;
+            }
+
+            const fileName = `OS-${order.id}-${printingState?.role || 'documento'}.pdf`;
+            doc.save(fileName);
+
+            // Cleanup
+            document.body.removeChild(container);
+
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao gerar PDF. Verifique se as imagens (assinaturas) estão acessíveis.");
+        } finally {
+            setIsGenerating(false);
+            setPrintingState(null); // Reset printing state
+        }
+    };
+
+    // Trigger for Team PDF
     const handleGenerateTeam = () => {
         if (!teamData.scheduledTime) {
             alert('Por favor, informe o horário no local.');
@@ -113,34 +237,49 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
         }
         if (!selectedRole) return;
 
-        const roleLabels = {
-            'ajudante': 'Ajudantes',
-            'montador': 'Montadores',
-            'embalador': 'Embaladores',
-            'motorista': 'Motorista',
-            'geral': 'Geral'
+        // Map internal role to PrintRole
+        const roleMapping: Record<string, PrintRole> = {
+            'ajudante': 'ajudante',
+            'montador': 'montador',
+            'embalador': 'embalador',
+            'motorista': 'motorista',
+            'geral': 'geral'
         };
 
-        generateTeamPDF(order, selectedRole, roleLabels[selectedRole], customNote, teamData);
-        handleClose();
+        setPrintingState({
+            role: roleMapping[selectedRole] || 'geral',
+            config: teamData
+        });
+
+        setIsGenerating(true);
     };
 
-    // Driver PDF Generation
-    const handleGenerateDriver = async () => {
+    // Trigger for Driver PDF
+    const handleGenerateDriver = () => {
         // Validate required fields
         if (!driverData.fullName || !driverData.cpf || !driverData.cnh || !driverData.plate) {
             alert("Por favor, preencha todos os campos obrigatórios do motorista.");
             return;
         }
 
+        setPrintingState({
+            role: 'motorista',
+            driverData: driverData
+        });
+
         setIsGenerating(true);
-        // Allow UI to update before heavy PDF generation
-        setTimeout(async () => {
-            await generateDriverPDF(order, driverData);
-            setIsGenerating(false);
-            handleClose();
-        }, 100);
     };
+
+    // Effect to trigger print when printingState is ready
+    useEffect(() => {
+        if (printingState && isGenerating) {
+            // Give React a moment to render the hidden component
+            const timer = setTimeout(() => {
+                handleDownloadPDF();
+            }, 500); // 500ms delay to ensure rendering and image loading
+            return () => clearTimeout(timer);
+        }
+    }, [printingState, isGenerating]);
 
     const handleCnhChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -565,6 +704,22 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({ isOpen, onClose,
                     </div>
                 </>
             )}
+
+            {/* --- GHOST ELEMENT FOR PRINTING --- */}
+            {/* This element is rendered off-screen but exists in the DOM for html2canvas */}
+            <div className="fixed top-0 left-0 pointer-events-none opacity-0 z-[-1] overflow-hidden" style={{ visibility: printingState ? 'visible' : 'hidden' }}>
+                <div ref={printRef} className="inline-block">
+                    {order && printingState && (
+                        <PrintableServiceOrder
+                            order={order}
+                            role={printingState.role}
+                            config={printingState.config}
+                            driverData={printingState.driverData}
+                            customNote={customNote}
+                        />
+                    )}
+                </div>
+            </div>
         </AnimatePresence>
     );
 };
