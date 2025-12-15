@@ -138,17 +138,37 @@ export const PrintableServiceOrder = forwardRef<HTMLDivElement, PrintableProps>(
                         </section>
                     )}
                 </>
+
+            )
+            }
+
+            {/* CNH SECTION - ADDED */}
+            {role === 'motorista' && driverData?.cnhImage && (
+                <section className="mb-8 border-t border-slate-200 pt-6 print-safe-block">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
+                        Anexo: Carteira Nacional de Habilitação (CNH)
+                    </h3>
+                    <div className="border border-slate-200 rounded-lg p-2 bg-slate-50 flex justify-center">
+                        <img
+                            src={driverData.cnhImage}
+                            alt="CNH do Motorista"
+                            className="max-w-full max-h-[400px] object-contain pdf-image"
+                        />
+                    </div>
+                </section>
             )}
 
             {/* NOTAS PERSONALIZADAS */}
-            {customNote && (
-                <section className="mb-8 print-safe-block">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase border-b border-slate-200 pb-1 mb-3">Observações / Instruções</h3>
-                    <p className="text-sm text-slate-700 italic border-l-4 border-amber-400 pl-4 py-2 bg-amber-50">
-                        "{customNote}"
-                    </p>
-                </section>
-            )}
+            {
+                customNote && (
+                    <section className="mb-8 print-safe-block">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase border-b border-slate-200 pb-1 mb-3">Observações / Instruções</h3>
+                        <p className="text-sm text-slate-700 italic border-l-4 border-amber-400 pl-4 py-2 bg-amber-50">
+                            "{customNote}"
+                        </p>
+                    </section>
+                )
+            }
 
             {/* ESPAÇO PARA ASSINATURAS (Rodapé fixo ou fluido) */}
             <div className="mt-12 grid grid-cols-2 gap-10 print-safe-block">
@@ -182,7 +202,7 @@ export const PrintableServiceOrder = forwardRef<HTMLDivElement, PrintableProps>(
                 <p>CNPJ: 54.826.258/0001-70 • Contato: (41) 8747-1778</p>
             </footer>
 
-        </div>
+        </div >
     );
 });
 
