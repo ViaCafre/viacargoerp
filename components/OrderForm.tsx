@@ -4,6 +4,8 @@ import { X, Plus, Trash2, DollarSign, Calculator, Save, User, Truck, MapPin, Pac
 import { ServiceOrder, ExtraService, ProgressStage, formatCurrency, ServiceType, NoteColor } from '../types';
 import { Input } from './ui/Input';
 import { PdfExportModal } from './PdfExportModal';
+import { InventoryGenerator } from './InventoryGenerator';
+import { createPortal } from 'react-dom';
 
 interface OrderFormProps {
     isOpen: boolean;
@@ -96,6 +98,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSubmit,
     const [formData, setFormData] = useState<any>(emptyOrder);
     const [extras, setExtras] = useState<ExtraService[]>([]);
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [showInventory, setShowInventory] = useState(false);
 
     // Initialize form state
     useEffect(() => {
@@ -667,7 +670,18 @@ export const OrderForm: React.FC<OrderFormProps> = ({ isOpen, onClose, onSubmit,
                         isOpen={isPdfModalOpen}
                         onClose={() => setIsPdfModalOpen(false)}
                         order={initialData || null}
+                        onOpenInventory={() => setShowInventory(true)}
                     />
+
+                    {/* Inventory Generator (Portal) */}
+                    {createPortal(
+                        <InventoryGenerator
+                            isOpen={showInventory}
+                            onClose={() => setShowInventory(false)}
+                            initialData={formData}
+                        />,
+                        document.body
+                    )}
                 </>
             )}
         </AnimatePresence>

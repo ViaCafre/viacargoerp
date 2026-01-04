@@ -81,7 +81,6 @@ function App() {
     // Revenue Card UI
     const [showMoneyRain, setShowMoneyRain] = useState(false);
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [revenueViewDate, setRevenueViewDate] = useState(new Date());
     const [viewDate, setViewDate] = useState(new Date());
 
     const fetchData = async () => {
@@ -163,16 +162,6 @@ function App() {
         setShowMoneyRain(false);
     };
 
-    const handlePrevRevenueMonth = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setRevenueViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    };
-
-    const handleNextRevenueMonth = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setRevenueViewDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    };
-
     // --- MEMOS ---
     const monthlyRevenue = useMemo(() => {
         const key = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`;
@@ -192,23 +181,26 @@ function App() {
         return cashIn - cashOut;
     }, [orders, transactions, viewDate]);
 
+    // CUMULATIVE REVENUE (All time)
     const revenueViewValue = useMemo(() => {
-        const key = `${revenueViewDate.getFullYear()}-${String(revenueViewDate.getMonth() + 1).padStart(2, '0')}`;
-        const monthOrders = orders.filter(order => order.pickupDate.startsWith(key));
         let cashIn = 0;
         let cashOut = 0;
-        monthOrders.forEach(order => {
+
+        // Sum all orders
+        orders.forEach(order => {
             const received = calculateReceivedAmount(order);
             cashIn += received;
             if (order.isCostsPaid) cashOut += calculateCosts(order.financials);
         });
-        const monthTransactions = transactions.filter(t => t.date.startsWith(key));
-        monthTransactions.forEach(t => {
+
+        // Sum all transactions
+        transactions.forEach(t => {
             if (t.type === 'income') cashIn += t.amount;
             if (t.type === 'expense') cashOut += t.amount;
         });
+
         return cashIn - cashOut;
-    }, [orders, transactions, revenueViewDate]);
+    }, [orders, transactions]);
 
     const globalPending = useMemo(() => {
         let pendingReceivables = 0;
@@ -448,27 +440,9 @@ function App() {
                         <div className="w-full flex items-center justify-between relative z-10 mb-2">
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_#10b981]"></div>
-                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Faturamento Líquido</p>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Faturamento Líquido (Geral)</p>
                             </div>
 
-                            {/* Pagination Controls */}
-                            <div className="flex items-center gap-1 bg-slate-950/40 p-1 rounded-lg border border-white/10 backdrop-blur-md transition-colors hover:bg-slate-900/60 z-30">
-                                <button
-                                    onClick={handlePrevRevenueMonth}
-                                    className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
-                                >
-                                    <ChevronLeft size={14} />
-                                </button>
-                                <div className="px-3 text-[10px] font-bold text-slate-300 uppercase tracking-widest min-w-[90px] text-center">
-                                    {revenueViewDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-                                </div>
-                                <button
-                                    onClick={handleNextRevenueMonth}
-                                    className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
-                                >
-                                    <ChevronRight size={14} />
-                                </button>
-                            </div>
                         </div>
 
                         {/* CENTERED VALUE */}

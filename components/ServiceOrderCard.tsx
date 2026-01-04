@@ -21,6 +21,7 @@ import {
     Circle
 } from 'lucide-react';
 import { ServiceOrder, formatCurrency, calculateProfit, calculateCosts, ViewMode } from '../types';
+import { InventoryGenerator } from './InventoryGenerator';
 
 interface ServiceOrderCardProps {
     order: ServiceOrder;
@@ -208,13 +209,15 @@ const MegaOverlayContent = ({
     profit,
     totalValue,
     costs,
-    onClose
+    onClose,
+    onOpenInventory
 }: {
     order: ServiceOrder,
     profit: number,
     totalValue: number,
     costs: number,
-    onClose: () => void
+    onClose: () => void,
+    onOpenInventory: () => void
 }) => {
 
     // Helper sub-component
@@ -270,6 +273,12 @@ const MegaOverlayContent = ({
                         <div className={`text-4xl font-black ${profit >= 0 ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'text-rose-500'}`}>
                             {formatCurrency(profit)}
                         </div>
+                        <button
+                            onClick={onOpenInventory}
+                            className="mt-2 text-[10px] font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/10 px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 justify-end ml-auto"
+                        >
+                            <FileText size={12} /> Gerar Inventário
+                        </button>
                     </div>
                 </div>
 
@@ -413,6 +422,7 @@ export const ServiceOrderCard: React.FC<ServiceOrderCardProps> = ({
     viewMode = 'default'
 }) => {
     const [showNotes, setShowNotes] = useState(false);
+    const [showInventory, setShowInventory] = useState(false);
     const [isLongHovered, setIsLongHovered] = useState(false);
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -710,9 +720,20 @@ export const ServiceOrderCard: React.FC<ServiceOrderCardProps> = ({
                             totalValue={totalValue}
                             costs={costs}
                             onClose={closeDetailOverlay}
+                            onOpenInventory={() => setShowInventory(true)}
                         />
                     )}
                 </AnimatePresence>,
+                document.body
+            )}
+
+            {/* --- INVENTORY GENERATOR PORTAL --- */}
+            {createPortal(
+                <InventoryGenerator
+                    isOpen={showInventory}
+                    onClose={() => setShowInventory(false)}
+                    initialData={order}
+                />,
                 document.body
             )}
         </>

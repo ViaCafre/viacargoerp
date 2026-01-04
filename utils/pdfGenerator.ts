@@ -214,6 +214,35 @@ export const generateDriverPDF = async (order: ServiceOrder, driver: DriverData)
     drawBoxOutline(sec1Y + 9, currentY - (sec1Y + 9));
     cursorY = currentY + 12;
 
+    // ===== CNH IMAGE SECTION (NEW) =====
+    if (driver.cnhImage) {
+        // Safe check for valid base64
+        try {
+            const imgHeight = 80; // Fixed height for CNH
+            const imgWidth = 120; // Max width approximate
+            const xPos = (pageWidth - imgWidth) / 2; // Center it
+
+            // Draw Label
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(100, 100, 100);
+            doc.text("ANEXO: CNH DO MOTORISTA", MARGIN, cursorY - 2);
+
+            // Draw Image
+            doc.addImage(driver.cnhImage, 'JPEG', xPos, cursorY, imgWidth, imgHeight, undefined, 'FAST');
+
+            // Advance cursor
+            cursorY += imgHeight + 10;
+        } catch (err) {
+            console.error("Error rendering CNH image", err);
+            // Fallback text if image fails
+            doc.setFontSize(8);
+            doc.setTextColor(255, 0, 0);
+            doc.text("[Erro ao renderizar imagem da CNH]", MARGIN, cursorY + 5);
+            cursorY += 10;
+        }
+    }
+
     // ===== SECTION 2: DADOS DA OPERAÇÃO =====
     const sec2Y = cursorY;
     currentY = drawSectionHeader("DADOS DA OPERAÇÃO", sec2Y) + 7;
