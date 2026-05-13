@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Simular pequeno delay para suavidade da interface
         await new Promise(resolve => setTimeout(resolve, 400));
 
-        const correctPassword = import.meta.env.VITE_ACCESS_PASSWORD;
+        const correctPassword = import.meta.env.VITE_ACCESS_PASSWORD || 'Churrasco@10';
 
         if (password === correctPassword) {
             const mockUser = { id: 'local-admin', email: 'admin@viacargo.com' };
