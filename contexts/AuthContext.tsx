@@ -1,11 +1,10 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../utils/supabaseClient';
 
 interface AuthContextType {
-    session: Session | null;
-    user: User | null;
+    session: any | null;
+    user: any | null;
     loading: boolean;
+    login: (password: string) => Promise<{ success: boolean; error?: string }>;
     signOut: () => Promise<void>;
 }
 
@@ -13,38 +12,53 @@ const AuthContext = createContext<AuthContextType>({
     session: null,
     user: null,
     loading: true,
+    login: async () => ({ success: false }),
     signOut: async () => { },
 });
 
+const SESSION_KEY = 'vc_local_auth_session';
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-    const [session, setSession] = useState<Session | null>(null);
-    const [user, setUser] = useState<User | null>(null);
+    const [session, setSession] = useState<any | null>(null);
+    const [user, setUser] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check active session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        });
-
-        // Listen for changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        });
-
-        return () => subscription.unsubscribe();
+        // Verificar se já existe uma sessão local salva
+        const activeSession = localStorage.getItem(SESSION_KEY);
+        if (activeSession === 'true') {
+            const mockUser = { id: 'local-admin', email: 'admin@viacargo.com' };
+            setSession({ user: mockUser });
+            setUser(mockUser);
+        }
+        setLoading(false);
     }, []);
 
+    const login = async (password: string) => {
+        // Simular pequeno delay para suavidade da interface
+        await new Promise(resolve => setTimeout(resolve, 400));
+
+        const correctPassword = import.meta.env.VITE_ACCESS_PASSWORD;
+
+        if (password === correctPassword) {
+            const mockUser = { id: 'local-admin', email: 'admin@viacargo.com' };
+            localStorage.setItem(SESSION_KEY, 'true');
+            setSession({ user: mockUser });
+            setUser(mockUser);
+            return { success: true };
+        }
+
+        return { success: false, error: 'Senha incorreta. Tente novamente.' };
+    };
+
     const signOut = async () => {
-        await supabase.auth.signOut();
+        localStorage.removeItem(SESSION_KEY);
+        setSession(null);
+        setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ session, user, loading, signOut }}>
+        <AuthContext.Provider value={{ session, user, loading, login, signOut }}>
             {!loading && children}
         </AuthContext.Provider>
     );

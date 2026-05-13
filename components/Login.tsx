@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { supabase } from '../utils/supabaseClient';
-import { Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
 
 export const Login = () => {
-    const [email, setEmail] = useState('');
+    const { login } = useAuth();
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -15,12 +15,11 @@ export const Login = () => {
         setError(null);
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-
-            if (error) throw error;
+            // Chamamos a função de login do contexto local
+            const result = await login(password);
+            if (!result.success) {
+                setError(result.error || 'Senha incorreta.');
+            }
         } catch (err: any) {
             setError(err.message || 'Erro ao fazer login');
         } finally {
@@ -64,24 +63,7 @@ export const Login = () => {
                         )}
 
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Email</label>
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-emerald-500 transition-colors">
-                                    <Mail size={18} />
-                                </div>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all"
-                                    placeholder="seu@email.com"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Senha</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Senha de Acesso</label>
                             <div className="relative group">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-emerald-500 transition-colors">
                                     <Lock size={18} />
@@ -93,6 +75,7 @@ export const Login = () => {
                                     className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-all"
                                     placeholder="••••••••"
                                     required
+                                    autoFocus
                                 />
                             </div>
                         </div>

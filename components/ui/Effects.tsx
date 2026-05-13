@@ -22,7 +22,7 @@ export const AnimatedCounter: React.FC<AnimatedCounterProps> = ({ value, classNa
   }, [value, springValue]);
 
   // Transform number to currency string - REMOVED Math.floor to keep cents
-  const displayValue = useTransform(springValue, (current) => formatCurrency(current));
+  const displayValue = useTransform(springValue, (current: any) => formatCurrency(typeof current === 'number' ? current : parseFloat(current) || 0));
 
   return <motion.span className={className}>{displayValue}</motion.span>;
 };

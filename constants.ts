@@ -26,7 +26,14 @@ export const INITIAL_ORDERS: ServiceOrder[] = [
     },
     pickupDate: '2023-10-25',
     deliveryForecast: '2023-10-27',
-    notes: 'Cliente VIP. Cuidado extremo com o piano de cauda.',
+    notes: [
+      {
+        id: 'n-1',
+        content: 'Cliente VIP. Cuidado extremo com o piano de cauda.',
+        color: 'emerald',
+        createdAt: new Date().toISOString()
+      }
+    ],
     noteTags: 'emerald',
     createdAt: new Date().toISOString()
   },
@@ -54,7 +61,14 @@ export const INITIAL_ORDERS: ServiceOrder[] = [
     },
     pickupDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], // 2 days from now
     deliveryForecast: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0],
-    notes: 'Aguardando confirmação de pagamento da coleta.',
+    notes: [
+      {
+        id: 'n-2',
+        content: 'Aguardando confirmação de pagamento da coleta.',
+        color: 'amber',
+        createdAt: new Date().toISOString()
+      }
+    ],
     noteTags: 'amber',
     createdAt: new Date().toISOString()
   },
@@ -82,7 +96,14 @@ export const INITIAL_ORDERS: ServiceOrder[] = [
     },
     pickupDate: new Date(Date.now() + 86400000 * 10).toISOString().split('T')[0],
     deliveryForecast: new Date(Date.now() + 86400000 * 12).toISOString().split('T')[0],
-    notes: 'Mudança corporativa. Nota fiscal antecipada solicitada.',
+    notes: [
+      {
+        id: 'n-3',
+        content: 'Mudança corporativa. Nota fiscal antecipada solicitada.',
+        color: 'blue',
+        createdAt: new Date().toISOString()
+      }
+    ],
     noteTags: 'blue',
     createdAt: new Date().toISOString()
   }

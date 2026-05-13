@@ -74,7 +74,7 @@ export const InventoryGenerator: React.FC<InventoryGeneratorProps> = ({ isOpen, 
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const files = Array.from(e.target.files);
+            const files = Array.from(e.target.files) as File[];
             const imageUrls = files.map(file => URL.createObjectURL(file));
             setAttachedImages([...attachedImages, ...imageUrls]);
         }
